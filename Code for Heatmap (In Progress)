@@ -1,0 +1,210 @@
+# Read in Libraries (Dont know if we will need all, just installed everything that we've used in class)
+!pip install folium
+!pip install xarray
+!pip install netcdf4
+!pip install contextily
+!pip install seaborn contextily pointpats
+!pip install rasterio
+!pip install geopandas
+!pip install gemgis
+
+#Import 
+import folium
+import ee
+import geemap.foliumap as geemap
+import xarray as xr
+import matplotlib.pyplot as plt
+import pandas as pd
+import geopandas as gpd
+import seaborn as sns
+import matplotlib as mpl
+from shapely import Point, wkt, Polygon
+import rasterio
+import os
+import gemgis as gg
+import shapely.geometry as sg
+
+
+
+
+# Read in files:
+raceresults = pd.read_csv('/content/Formula1_2018Season_RaceResults.csv')
+print(raceresults)
+
+Overtakes = pd.read_csv('/content/2018 Overtakes - Sheet1.csv')
+print(Overtakes)
+
+gdf = gpd.read_file("/content/polylines3.shp", restore_shx=True)
+print(gdf.info())
+print(gdf.head())
+gdf
+
+.......Starting code for Heatmap.................
+#Manipulating Data
+# Extracting Coordinates
+gdf1 = gpd.GeoDataFrame(geometry=[])
+
+coords_list = [
+    (144.96863, -37.84974), #Australia, AUS
+    (50.51054, 26.03176), #Bahrain, BAHR
+    (49.85322, 40.37268), #Azerbaijan, AZR
+    (2.26126, 41.57002), #Spain, SPN
+    (121.21838, 31.33683), #China, CN 
+    (7.42714, 43.73944), #Monaco, MON
+    (-73.52324, 45.50180), #Montreal, CAN
+    (5.79160, 43.25200), #France, FRAN
+    (14.76559, 47.22013), #Austria, AUST
+    (-1.01530, 52.07879), #Britian, Britian   
+    (8.56585, 49.32780), #Germany, GER
+    (19.24676, 47.57982), #Hungary, HUNG
+    (5.96450, 50.44482), #Belgium, BELG 
+    (9.28120, 45.61899), #Italy, ITLY 
+    (103.86398, 1.29321), #Singapore, SING
+    (39.96807, 43.40970), #Russia, RUS
+    (136.54028, 34.84335), #Japan, JPN
+    (-97.63963, 30.13175), #Austin, USA
+    (-99.09338, 19.40610), #Mexico, MEX
+    (-46.69997, -23.70375), #Brazil, BRZL
+    (54.60546, 24.46997) #United Arab Emirates, UAE
+]
+
+# Create Point geometries from coordinates and add to a new DataFrame
+point_geoms = [sg.Point(coords) for coords in coords_list]
+new_data = {'geometry': point_geoms}
+new_gdf = gpd.GeoDataFrame(new_data, crs=gdf1.crs)
+
+# Concatenate the original GeoDataFrame with the new GeoDataFrame
+gdf1 = pd.concat([gdf1, new_gdf], ignore_index=True)
+
+# Print the GeoDataFrame with Point geometries
+print("GeoDataFrame with Point Geometries:")
+print(gdf1)
+
+# Extracting the X and Y coordinates of the Point geometries
+gdf1_xy = gpd.GeoDataFrame({'x': gdf1.geometry.y,
+                            'y': gdf1.geometry.x})
+
+# Print the GeoDataFrame with X and Y coordinates of Point geometries
+print("\nGeoDataFrame with X and Y coordinates of Point Geometries:")
+print(gdf1_xy)
+
+# Plot the polygons from the GeoDataFrame on top of the world map
+fig, ax = plt.subplots(figsize=(20, 20))
+world = gpd.read_file(gpd.datasets.get_path('naturalearth_lowres'))
+world.plot(ax=ax, color='lightgrey')
+
+gdf1.plot(ax=ax, alpha=0.5, marker='o', color='blue', markersize=40)
+
+# Set plot title and axis labels
+plt.title('Track Locations Overlayed on World Map')
+plt.xlabel('Longitude')
+plt.ylabel('Latitude')
+
+# Show the plot
+plt.show()
+
+##Look at elements for each map (Seeing if I can loop / make more efficient)
+gdf.loc[0].geometry
+gdf.loc[1].geometry
+gdf.loc[2].geometry
+gdf.loc[3].geometry
+gdf.loc[4].geometry
+gdf.loc[5].geometry
+gdf.loc[6].geometry
+gdf.loc[7].geometry
+gdf.loc[8].geometry
+gdf.loc[9].geometry
+gdf.loc[10].geometry
+gdf.loc[11].geometry
+gdf.loc[12].geometry
+gdf.loc[13].geometry
+gdf.loc[14].geometry
+gdf.loc[15].geometry
+gdf.loc[16].geometry
+gdf.loc[17].geometry
+gdf.loc[18].geometry
+gdf.loc[19].geometry
+gdf.loc[20].geometry
+
+##Country Dataframes
+# Making Dataframes for Every Country
+races_countries = {
+    "Australia": "AUS", "Bahrain": "BAHR", "China": "CN", "Azerbaijan": "AZR", "Spain": "SPN",
+    "Monaco": "MON", "Canada": "CAN", "France": "FRAN", "Austria": "AUST", "Britain": "Britian",
+    "Germany": "GER", "Hungary": "HUNG", "Belgium": "BELG", "Italy": "ITLY", "Singapore": "SING",
+    "Russia": "RUS", "Japan": "JPN", "USA": "USA", "Mexico": "MEX", "Brazil": "BRZL", "Abu Dhabi": "UAE"
+}
+
+# Create a dictionary to store the dataframes for each country
+country_dataframes = {}
+
+# Loop through each race and create a new dataframe for each country
+for race, country_code in races_countries.items():
+    country_dataframes[country_code] = Overtakes[Overtakes['Race'] == race].reset_index(drop=True)
+
+# Print dataframes for each country
+for country_code, dataframe in country_dataframes.items():
+    print(f"Dataframe for {country_code}:")
+    print(dataframe)
+    print("\n" + "-"*50 + "\n")
+
+# Create a new DataFrame for each country dynamically
+for country_code, dataframe in country_dataframes.items():
+    globals()[f"{country_code.lower()}_df"] = dataframe.copy()
+
+# Counts for turns, based on country
+dataframes = [
+    aus_df, bahr_df, cn_df, azr_df, spn_df, mon_df, can_df, fran_df,
+    aust_df, britian_df, ger_df, hung_df, belg_df, itly_df, sing_df,
+    rus_df, jpn_df, usa_df, mex_df, brzl_df, uae_df
+]
+
+country_codes = [
+    'AUS', 'BAHR', 'CN', 'AZR', 'SPN', 'MON', 'CAN', 'FRAN', 'AUST', 'Britian', 'GER',
+    'HUNG', 'BELG', 'ITLY', 'SING', 'RUS', 'JPN', 'USA' 'MEX', 'BRZL', 'UAE'
+]
+
+for df, country_code in zip(dataframes, country_codes):
+    # Calculate value counts for the 'Turn' column in the current DataFrame
+    counts = df['Turn'].value_counts()
+
+    # Print the value counts for the current country
+    print(f"Value counts for {country_code}:")
+    print(counts)
+    print("-" * 50)
+
+#Merging stats and maps data
+coords_list = [
+    (144.96863, -37.84974), #Australia, AUS
+    (50.51054, 26.03176), #Bahrain, BAHR
+    (49.85322, 40.37268), #Azerbaijan, AZR
+    (2.26126, 41.57002), #Spain, SPN
+    (121.21838, 31.33683), #China, CN 
+    (7.42714, 43.73944), #Monaco, MON
+    (-73.52324, 45.50180), #Montreal, CAN
+    (5.79160, 43.25200), #France, FRAN
+    (14.76559, 47.22013), #Austria, AUST
+    (-1.01530, 52.07879), #Britian, Britian   
+    (8.56585, 49.32780), #Germany, GER
+    (19.24676, 47.57982), #Hungary, HUNG
+    (5.96450, 50.44482), #Belgium, BELG 
+    (9.28120, 45.61899), #Italy, ITLY 
+    (103.86398, 1.29321), #Singapore, SING
+    (39.96807, 43.40970), #Russia, RUS
+    (136.54028, 34.84335), #Japan, JPN
+    (-97.63963, 30.13175), #Austin, USA
+    (-99.09338, 19.40610), #Mexico, MEX
+    (-46.69997, -23.70375), #Brazil, BRZL
+    (54.60546, 24.46997) #United Arab Emirates, UAE
+]
+
+#NEED TO FIX
+coords_df = pd.DataFrame(coords_list, columns=['Longitude', 'Latitude'])
+Overtakes['Coordinates'] = coords_df.apply(lambda row: (row['Longitude'], row['Latitude']), axis=1)
+Overtakes
+gdf['Coordinates'] = coords_df.apply(lambda row: (row['Longitude'], row['Latitude']), axis=1)
+gdf
+
+map_and_stats=gdf.merge(Overtakes, on="Coordinates")
+map_and_stats
+
